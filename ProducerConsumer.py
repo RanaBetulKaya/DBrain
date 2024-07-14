@@ -12,10 +12,21 @@ soup = BeautifulSoup(response.content, "html.parser")
 
 items = []
 for product in soup.select(".product"):
+    link=product.select_one("a")["href"]
+    response = requests.get(link)
+    soup = BeautifulSoup(response.content, "html.parser")
+    
+    div = soup.select(".summary")
+    name = soup.select_one(".product_title").text
+    price = soup.select_one(".price").text
+    description = soup.select_one(".woocommerce-product-details__short-description").text
+    stock = soup.select_one(".stock").text
+    print(name, price, description, stock)
     item = {
-        "name": product.select_one(".woocommerce-loop-product__title").text,
-        "price": product.select_one(".price").text,
-        "link": product.select_one("a")["href"]
+        "name": name,
+        "price": price,
+        "description": description,
+        "stock": stock
     }
     items.append(item)
 
@@ -48,7 +59,11 @@ consumer = KafkaConsumer('DBrainTask',
 print("Consuming messages from Kafka...")
 try:
     with open('data.json', 'w') as f:
+        f.write('[')
+        counter=0
         for message in consumer:
+            counter+=1
+            total_items = len(items)
             raw_value = message.value
             print(f"Raw message: {raw_value}")  # Print raw message for debugging
             if raw_value:  # Ensure the message is not empty
@@ -56,10 +71,15 @@ try:
                     data = raw_value
                     print(f"Consumed: {data}")
                     json.dump(data, f)
+                    print(total_items)
+                    print(counter)
+                    if counter != total_items:
+                        f.write(',')
                     f.write('\n')
                 except json.JSONDecodeError as e:
                     print(f"Failed to decode message: {e}")
             else:
                 print("Received empty message")
+        f.write(']')
 except Exception as e:
     print(f"Error consuming messages: {e}")
