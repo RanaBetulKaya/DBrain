@@ -4,6 +4,7 @@ import json
 import time
 from kafka import KafkaProducer, KafkaConsumer
 from kafka.errors import KafkaError
+import os
 
 # Scrape data from the website
 url = "https://scrapeme.live/shop/"
@@ -31,13 +32,16 @@ for product in soup.select(".product"):
     items.append(item)
 
 # Kafka Producer
-producer = KafkaProducer(bootstrap_servers='localhost:9092', 
+broker = os.environ.get('KAFKA_BROKER')
+topic = os.environ.get('KAFKA_TOPIC')
+DATA_FILE = '/data/data.json'
+producer = KafkaProducer(bootstrap_servers=broker, 
                          value_serializer=lambda v: json.dumps(v).encode('utf-8'))
 
 print("Producing messages to Kafka...")
 for item in items:
     try:
-        producer.send('DBrainTask', item)
+        producer.send(topic, item)
         print(f"Produced: {item}")
         time.sleep(1)
     except KafkaError as e:
@@ -50,15 +54,15 @@ producer.close()
 time.sleep(5)
 
 # Kafka Consumer
-consumer = KafkaConsumer('DBrainTask', 
-                         bootstrap_servers='localhost:9092', 
+consumer = KafkaConsumer(topic, 
+                         bootstrap_servers=broker, 
                          auto_offset_reset='earliest', 
                          consumer_timeout_ms=30000, 
                          value_deserializer=lambda m: json.loads(m.decode('utf-8')))
 
 print("Consuming messages from Kafka...")
 try:
-    with open('data.json', 'w') as f:
+    with open(DATA_FILE, 'w') as f:
         f.write('[')
         counter=0
         for message in consumer:
